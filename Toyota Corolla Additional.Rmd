@@ -1,0 +1,81 @@
+---
+title: "Toyota Corolla Data"
+output: html_document
+---
+```{r}
+library(ggplot2)
+library(FNN)
+library(caret)
+library(kableExtra)
+library(dplyr)
+```
+
+```{r}
+data <- read.csv("ToyotaCorolla.csv")
+head(data)
+```
+```{r}
+#Check statistics for a Price column
+summary(data$Price)
+```
+
+```{r}
+ggplot(data, aes(x = data$Price)) + 
+  geom_histogram(fill = "lightpink", col = "gray27", alpha = 0.7) +
+  labs(x = "Price", y = "Counts", title = "# of Cars by Price") +
+  theme_bw()
+
+```
+
+```{r}
+#Create a new column
+data$Price_Level <- as.factor(ifelse(data$Price > 10000, "High", "Low"))
+```
+
+```{r}
+#Partition data
+set.seed(123)
+train.index <- sample(rownames(data), 0.6*dim(data)[1])
+test.index <- setdiff(rownames(data), train.index)
+train.data <- data[train.index, ]
+test.data <- data[test.index, ]
+```
+
+```{r}
+#Conduct a KNN analysis to classify whether a car’s price level is high or low using Mfg_Year, Automatic, and Doors as predictors. 
+
+vars <- c("Mfg_Year", "Automatic", "Doors", "Price_Level")
+
+train1.data <- train.data[, vars] 
+test1.data <- test.data[, vars]
+train.data.scaled <- train1.data
+test.data.scaled <- test1.data
+
+#Normalizing data
+norm.values <- preProcess(train1.data[, 1:3], method = c("center", "scale"))
+train.data.scaled[, 1:3] <- predict(norm.values, train1.data[, 1:3])
+test.data.scaled[, 1:3] <- predict(norm.values, test1.data[, 1:3])
+
+accuracy <- data.frame(k = seq(1, 15, 1), accuracy = rep(0, 15))
+
+for (i in 1:15) {
+  knn <- knn(train.data.scaled[, 1:3], test.data.scaled[, 1:3], cl = train.data.scaled[, 4], k = i)
+  accuracy[i, 2] <- confusionMatrix(knn, test.data.scaled[, 4])$overall[1]
+}
+
+kable(accuracy, align = 'c', caption = 'Accuracy') %>% 
+  kable_styling(latex_options = c('striped', 'hold_position'))
+```
+
+According to knn analysis, the optimal number on neighbours is equal to 4.
+
+```{r}
+#Classify a new record
+new.car <- data.frame(Mfg_Year = 2000, Automatic = 1, Doors = 4)
+new.car.scaled  <- predict(norm.values, new.car)
+
+knn.new <- knn(train.data.scaled[, 1:3], new.car.scaled, cl = train.data.scaled[, 4], k = 4)
+knn.new
+```
+
+Price level of the new observation was classified as "Low".
